@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plock"
+version = "0.1.0"
+description = "detects blocks of co-varying plasmid genes"
+license = "MIT"
+requires-python = ">=3.9"
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+plock = "plock.blocks:main"
+plock_helpers = "plock.helpers:main"
+
+[tool.setuptools.package-data]
+plock = ["plot.html"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -1,0 +1,172 @@
+<!doctype html><meta charset=utf-8><title>plock report</title>
+<style>
+ body{font:12px/1.5 "Helvetica Neue",Helvetica,Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#222}
+ h1{font-size:16px;font-weight:600;margin:0 0 10px}
+ #ctl{margin-bottom:10px} #opts{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+ #ctl label{white-space:nowrap;display:flex;align-items:center;gap:6px} select{font:inherit;padding:2px 4px}
+ #ctl input[type=checkbox]{margin:0}
+ #fq{width:70px;margin:0} #oq{min-width:2.4em;font-variant-numeric:tabular-nums}
+ #wrap{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+ #main{flex:1 1 560px;min-width:0;max-width:max(560px,calc(100vh - 150px))} #fig{width:100%;height:auto;display:block}
+ #side{flex:1 1 380px;min-width:300px;max-width:520px}
+ #side h2{font-size:13px;font-weight:600;margin:16px 0 4px} #side h2:first-of-type{margin-top:12px}
+ #side table{border-collapse:collapse;width:100%}
+ #side th,#side td{padding:2px 0 2px 10px;border-bottom:1px solid #e6e6e6;vertical-align:bottom;font-weight:400}
+ #side th{color:#555;text-align:left;padding-left:0}
+ #side thead th{color:#555;text-align:right;padding-left:10px;border-bottom-color:#bbb}
+ #side thead th:first-child{text-align:left;padding-left:0}
+ #side td{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+ #side td:first-child{text-align:left;padding-left:0}
+ #side .note{color:#666;margin:6px 0 0}
+ #bstat{overflow-x:auto} #bstat thead th i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px -1px 0}
+ #tip{position:fixed;background:#222;color:#fff;padding:4px 8px;border-radius:3px;
+      font-size:12px;pointer-events:none;opacity:0;transition:opacity .1s}
+ .key{font-size:12px;color:#444} .key i{display:inline-block;width:10px;height:10px;
+      border-radius:2px;margin:0 4px -1px 0}
+ text{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif}
+ .gene-label{font-style:italic}
+</style>
+<h1>plock report</h1>
+<div id=wrap><div id=main>
+<div id=ctl>
+  <div id=opts><label>Plasmid <select id=sel></select></label>
+  <label><input type=checkbox id=allmi> all pairs with <i>p</i> &le; 0.05</label>
+  <label><input type=checkbox id=allnames> all gene names</label>
+  <label>tree <i>q</i> &le; <input type=range id=fq><output id=oq></output></label></div>
+</div>
+<svg id=fig viewBox="0 0 1100 1100"></svg>
+</div><div id=side>
+<div id=key class=key></div>
+<h2>Run statistics</h2><table id=tstat></table>
+<h2>Block statistics</h2><div id=bstat></div>
+</div></div>
+<div id=tip></div>
+<script>
+const PAR=__PARAMS__, CL=[__CLUSTERS__], LINKS=[__LINKS__], PLASMIDS=[__PLASMIDS__];
+const COL=["#2166ac","#e08214","#4daf4a","#984ea3","#a65628","#f781bf"];
+const col=b=>b>0?COL[(b-1)%COL.length]:"#b4b4b4";
+const S=1100, C=S/2, R=300, svg=document.getElementById("fig"), tip=document.getElementById("tip");
+const sel=document.getElementById("sel");
+const rows=r=>r.map(([k,v])=>`<tr><th>${k}</th><td>${v}</td></tr>`).join("");
+document.getElementById("tstat").innerHTML=rows([
+  ["plasmids",PAR.plasmids],
+  ["gene clusters",PAR.clusters],
+  ["core, single-copy gene clusters analysed",PAR.analysed],
+  ["distinct core-gene haplotypes",PAR.haplotypes],
+  ["gene changes on the tree",PAR.changes],
+  ["gene pairs tested",PAR.tested],
+  [`gene pairs with tree <i>q</i> &le; 0.05`,PAR.beyond],
+  ["blocks",PAR.blocks],
+  ["genes in blocks",PAR.block_genes]]);
+// one column per kept block; pairs are the gene pairs scored inside the block
+(function(){
+  const B=PAR.block_stats, box=document.getElementById("bstat");
+  if(!B.length){box.innerHTML='<p class=note>no blocks</p>';return}
+  const fx=(v,d)=>v==null?"NA":v.toFixed(d), fp=v=>v==null?"NA":v<0.001?"&lt;0.001":v<0.01?v.toFixed(3):v.toFixed(2);
+  const line=(k,f)=>`<tr><th>${k}</th>${B.map(b=>`<td>${f(b)}</td>`).join("")}</tr>`;
+  box.innerHTML=`<table><thead><tr><th></th>${B.map(b=>`<th><i style="background:${col(b.b)}"></i>block ${b.b}</th>`).join("")}</tr></thead><tbody>`+
+    line("genes",b=>b.genes)+line("gene pairs",b=>b.pairs)+
+    line("pairs with tree <i>q</i> &le; 0.05",b=>b.q)+line("median shared changes",b=>fx(b.co,1))+
+    line("median tree <i>p</i>",b=>fp(b.p))+line("median distance (kb)",b=>b.distance==null?"NA":fx(b.distance/1000,1))+
+    `</tbody></table>`;
+})();
+PLASMIDS.forEach((p,i)=>sel.add(new Option(p.p,i)));
+// the slider runs from 0 to 1 and starts where nothing is filtered out
+(function(){const e=document.getElementById("fq");e.min=0;e.max=1;e.step=0.01;e.value=1;})();
+let best=0,bn=-1;
+PLASMIDS.forEach((p,i)=>{const n=p.genes.filter(g=>CL[g[0]].b>0).length; if(n>bn){bn=n;best=i}});
+sel.value=best;
+const el=(t,a)=>{const e=document.createElementNS("http://www.w3.org/2000/svg",t);
+  for(const k in a)e.setAttribute(k,a[k]); return e};
+const show=(e,txt)=>{tip.style.opacity=1;tip.style.left=(e.clientX+12)+"px";
+  tip.style.top=(e.clientY+12)+"px";tip.textContent=txt};
+const name=G=>G.l||G.n;
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const showHTML=(e,html)=>{tip.style.opacity=1;tip.style.left=(e.clientX+12)+"px";
+  tip.style.top=(e.clientY+12)+"px";tip.innerHTML=html};
+const hide=()=>tip.style.opacity=0;
+function draw(){
+  const P=PLASMIDS[sel.value];
+  const allmi=document.getElementById("allmi").checked;
+  const allnames=document.getElementById("allnames").checked;
+  const maxQ=+document.getElementById("fq").value;
+  document.getElementById("oq").textContent=maxQ.toFixed(2);
+  svg.textContent="";
+  if(!P.genes.length){svg.appendChild(el("text",{x:20,y:40})).textContent="no genes placed";return}
+  const span=P.len||Math.max(...P.genes.map(g=>g[2]));
+  const ang=bp=>2*Math.PI*bp/span-Math.PI/2;
+  const at=(bp,r)=>[C+r*Math.cos(ang(bp)),C+r*Math.sin(ang(bp))];
+  const mid={}; P.genes.forEach(g=>{mid[g[0]]=(g[1]+g[2])/2});
+  svg.appendChild(el("circle",{cx:C,cy:C,r:R,fill:"none",stroke:"#ccc","stroke-width":0.8}));
+  LINKS.forEach(([a,b,w,q])=>{
+    if(!(a in mid)||!(b in mid))return;
+    if(q>maxQ)return;
+    const ba=CL[a].b, bb=CL[b].b, same=ba>0&&ba===bb;
+    if(!same&&!allmi)return;
+    const [x1,y1]=at(mid[a],R-18),[x2,y2]=at(mid[b],R-18);
+    const d=`M${x1},${y1}Q${C},${C} ${x2},${y2}`;
+    svg.appendChild(el("path",{d,fill:"none",stroke:same?col(ba):"#777",
+      "stroke-width":same?Math.min(2.2,0.4+w*0.3):0.5,"stroke-opacity":same?0.38:0.07}));
+    // invisible wider path, so a thin chord is still easy to hover
+    const hit=svg.appendChild(el("path",{d,fill:"none",stroke:"transparent",
+      "stroke-width":7,"pointer-events":"stroke"}));
+    hit.onmousemove=e=>showHTML(e,`${esc(name(CL[a]))}:${esc(name(CL[b]))} (tree <i>p</i>=${(10**-w).toPrecision(2)}`
+      +`, <i>q</i>=${q<0.001?"&lt;0.001":q.toFixed(3)})`);
+    hit.onmouseleave=hide;
+  });
+  P.genes.forEach(g=>{
+    const G=CL[g[0]], a0=ang(Math.max(0,g[1]-1)), a1=ang(Math.min(span,g[2]));
+    const forward=g[3]>0, i=forward?R+2:R-14, o=forward?R+14:R-2;
+    const point=(r,a)=>`${C+r*Math.cos(a)},${C+r*Math.sin(a)}`;
+    const head=Math.min((a1-a0)*0.45,0.015), edge=forward?a1-head:a0+head;
+    const large=+(a1-a0-head>Math.PI);
+    const d=forward
+      ?`M${point(o,a0)}A${o},${o} 0 ${large} 1 ${point(o,edge)}L${point((i+o)/2,a1)}L${point(i,edge)}A${i},${i} 0 ${large} 0 ${point(i,a0)}Z`
+      :`M${point(o,a1)}A${o},${o} 0 ${large} 0 ${point(o,edge)}L${point((i+o)/2,a0)}L${point(i,edge)}A${i},${i} 0 ${large} 1 ${point(i,a1)}Z`;
+    const arc=svg.appendChild(el("path",{"class":"gene-arrow","data-strand":forward?"+":"-",fill:col(G.b),"fill-opacity":0.95,d}));
+    arc.onmousemove=e=>show(e,(G.l?G.l+" ("+G.n+")":G.n)+" - "+(G.b>0?"block "+G.b:"no block"));
+    arc.onmouseleave=hide;
+  });
+  const used=[];
+  P.genes.filter(g=>CL[g[0]].b>0||(allnames&&CL[g[0]].l))
+    .sort((a,b)=>(CL[b[0]].b>0)-(CL[a[0]].b>0)||a[1]-b[1])
+    .forEach(g=>{
+      const G=CL[g[0]], a=(ang(g[1])+ang(Math.max(g[2],g[1]+span*0.0025)))/2;
+      if(used.some(v=>Math.abs(Math.atan2(Math.sin(a-v),Math.cos(a-v)))<=0.04))return;
+      used.push(a);
+      const deg=a*180/Math.PI;
+      const flip=Math.cos(a)<0, r=R+60;
+      svg.appendChild(el("text",{x:C+r*Math.cos(a),y:C+r*Math.sin(a),
+        "class":"gene-label","data-block":G.b,"font-size":12,fill:G.b>0?col(G.b):"#999","dominant-baseline":"middle",
+        "text-anchor":flip?"end":"start",
+        transform:`rotate(${flip?deg+180:deg},${C+r*Math.cos(a)},${C+r*Math.sin(a)})`}))
+        .textContent=name(G).length>26?name(G).slice(0,25)+"…":name(G);
+  });
+  const target=span/12, magnitude=10**Math.floor(Math.log10(target));
+  const step=[1,2,5,10].map(v=>v*magnitude).find(v=>v>=target);
+  for(let bp=0;bp<span;bp+=step){
+    const [x1,y1]=at(bp,R+16),[x2,y2]=at(bp,R+22),[x,y]=at(bp,R+36);
+    const deg=ang(bp)*180/Math.PI+90;
+    const rotation=deg>90&&deg<270?deg+180:deg;
+    svg.appendChild(el("line",{"class":"bp-marker",x1,y1,x2,y2,stroke:"#666","stroke-width":0.8}));
+    svg.appendChild(el("text",{x,y,"class":"bp-tick","font-size":12,fill:"#666","text-anchor":"middle",
+      "dominant-baseline":"middle",transform:`rotate(${rotation},${x},${y})`}))
+      .textContent=(bp/1000).toLocaleString(undefined,{maximumFractionDigits:3})+" kbp";
+  }
+  const centre=svg.appendChild(el("g",{"pointer-events":"none"}));
+  centre.appendChild(el("text",{x:C,y:C-4,"text-anchor":"middle",fill:"#444"})).textContent=P.p;
+  centre.appendChild(el("text",{x:C,y:C+16,"text-anchor":"middle",fill:"#000","font-size":12}))
+    .textContent=(span/1000).toFixed(1)+" kb, "+P.genes.length+" genes";
+  const box=centre.getBBox();
+  centre.insertBefore(el("rect",{x:box.x-8,y:box.y-6,width:box.width+16,height:box.height+12,
+    rx:4,fill:"#fff","fill-opacity":0.8}),centre.firstChild);
+  // crop to what was drawn, keeping the circle centred, so the plot fills its column
+  const bb=svg.getBBox(), half=Math.max(C-bb.x,bb.x+bb.width-C,C-bb.y,bb.y+bb.height-C)+6;
+  svg.setAttribute("viewBox",`${C-half} ${C-half} ${2*half} ${2*half}`);
+}
+document.getElementById("key").innerHTML=[...new Set(CL.map(g=>g.b))].filter(b=>b>0).sort((a,b)=>a-b).map(b=>
+  `<div><i style="background:${col(b)}"></i>block ${b} (${CL.filter(g=>g.b===b).length} genes)</div>`)
+  .join("")+`<div><i style="background:#b4b4b4"></i>no block</div>`;
+["sel","allmi","allnames"].forEach(i=>document.getElementById(i).onchange=draw);
+document.getElementById("fq").oninput=draw; draw();
+</script>

@@ -1,0 +1,10 @@
+.DS_Store
+.nextflow/
+.nextflow.log*
+.plock-cache/
+work/
+results*/
+data/
+__pycache__/
+*.egg-info/
+.pytest_cache/

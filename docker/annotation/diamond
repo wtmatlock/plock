@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+if [ "${PLOCK_DIAMOND_ARM64:-0}" = "1" ]; then
+    exec /opt/diamond-arm64/system-lib/ld-linux-aarch64.so.1 \
+        --library-path /opt/diamond-arm64/env/lib:/opt/diamond-arm64/system-lib \
+        /opt/diamond-arm64/env/bin/diamond "$@"
+fi
+exec /opt/conda/envs/bakta/bin/diamond-x86_64 "$@"
