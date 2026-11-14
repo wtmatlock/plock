@@ -5,7 +5,7 @@
  #ctl{margin-bottom:10px} #opts{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
  #ctl label{white-space:nowrap;display:flex;align-items:center;gap:6px} select{font:inherit;padding:2px 4px}
  #ctl input[type=checkbox]{margin:0}
- #fq{width:70px;margin:0} #oq{min-width:2.4em;font-variant-numeric:tabular-nums}
+ #qlab{flex:1 1 110px} #fq{flex:1;width:0;min-width:50px;margin:0} #oq{min-width:3.6em;font-variant-numeric:tabular-nums}
  #wrap{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
  #main{flex:1 1 560px;min-width:0;max-width:max(560px,calc(100vh - 150px))} #fig{width:100%;height:auto;display:block}
  #side{flex:1 1 380px;min-width:300px;max-width:520px}
@@ -18,7 +18,8 @@
  #side td{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
  #side td:first-child{text-align:left;padding-left:0}
  #side .note{color:#666;margin:6px 0 0}
- #bstat{overflow-x:auto} #bstat thead th i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px -1px 0}
+ #bmat th{white-space:nowrap} #bmat td{padding:2px 6px;text-align:center}
+ #bstat,#bmat{overflow-x:auto} #bmat th i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px -1px 0} #bstat thead th i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px -1px 0}
  #tip{position:fixed;background:#222;color:#fff;padding:4px 8px;border-radius:3px;
       font-size:12px;pointer-events:none;opacity:0;transition:opacity .1s}
  .key{font-size:12px;color:#444} .key i{display:inline-block;width:10px;height:10px;
@@ -32,18 +33,20 @@
   <div id=opts><label>Plasmid <select id=sel></select></label>
   <label><input type=checkbox id=allmi> all pairs with <i>p</i> &le; 0.05</label>
   <label><input type=checkbox id=allnames> all gene names</label>
-  <label>tree <i>q</i> &le; <input type=range id=fq><output id=oq></output></label></div>
+  <label id=qlab>tree <i>q</i> &le; <input type=range id=fq><output id=oq></output></label></div>
 </div>
 <svg id=fig viewBox="0 0 1100 1100"></svg>
 </div><div id=side>
 <div id=key class=key></div>
-<h2>Run statistics</h2><table id=tstat></table>
+<h2>Sample statistics</h2><table id=tstat></table>
 <h2>Block statistics</h2><div id=bstat></div>
+<h2>Block coherence</h2><div id=bmat></div>
 </div></div>
 <div id=tip></div>
 <script>
 const PAR=__PARAMS__, CL=[__CLUSTERS__], LINKS=[__LINKS__], PLASMIDS=[__PLASMIDS__];
-const COL=["#2166ac","#e08214","#4daf4a","#984ea3","#a65628","#f781bf"];
+// paul tol muted
+const COL=["#CC6677","#332288","#DDCC77","#117733","#88CCEE","#882255","#44AA99","#999933","#AA4499"];
 const col=b=>b>0?COL[(b-1)%COL.length]:"#b4b4b4";
 const S=1100, C=S/2, R=300, svg=document.getElementById("fig"), tip=document.getElementById("tip");
 const sel=document.getElementById("sel");
@@ -70,9 +73,28 @@ document.getElementById("tstat").innerHTML=rows([
     line("median tree <i>p</i>",b=>fp(b.p))+line("median distance (kb)",b=>b.distance==null?"NA":fx(b.distance/1000,1))+
     `</tbody></table>`;
 })();
+// share of gene pairs with tree q at most 0.05 within each block on the diagonal and between blocks below it
+(function(){
+  const M=PAR.between, box=document.getElementById("bmat");
+  if(!M||M.groups.length<2){box.innerHTML='<p class=note>fewer than two groups</p>';return}
+  const head=b=>`<i style="background:${col(b)}"></i>${b>0?b:"none"}`;
+  const cell=(c,i,j)=>{
+    if(j>i)return "<td></td>";
+    const [k,t]=c[j];
+    if(!t)return "<td>&ndash;</td>";
+    const s=k/t;
+    return `<td data-tip="${k} of ${t} pairs" style="background:rgba(51,34,136,${(0.05+0.4*s).toFixed(2)})">${Math.round(100*s)}%</td>`};
+  box.innerHTML=`<table><thead><tr><th></th>${M.groups.map(b=>`<th>${head(b)}</th>`).join("")}</tr></thead><tbody>`+
+    M.cells.map((c,i)=>`<tr><th>${head(M.groups[i])}</th>${c.map((_,j)=>cell(c,i,j)).join("")}</tr>`).join("")+
+    `</tbody></table><p class=note>Share of gene pairs with tree <i>q</i> &le; 0.05 by block.</p>`;
+  box.querySelectorAll("td[data-tip]").forEach(td=>{td.onmousemove=e=>show(e,td.dataset.tip); td.onmouseleave=()=>hide()});
+})();
 PLASMIDS.forEach((p,i)=>sel.add(new Option(p.p,i)));
-// the slider runs from 0 to 1 and starts where nothing is filtered out
-(function(){const e=document.getElementById("fq");e.min=0;e.max=1;e.step=0.01;e.value=1;})();
+// the slider runs on a log scale from the smallest q to 1 and starts where nothing is filtered out
+const QLOG=Math.floor(Math.log10(Math.min(1e-3,...LINKS.map(l=>l[3]).filter(q=>q>0))));
+const qAt=v=>v>=1000?1:10**(QLOG*(1-v/1000));
+const qText=q=>q>=1?"1":q<0.001?q.toExponential(1):q.toPrecision(2);
+(function(){const e=document.getElementById("fq");e.min=0;e.max=1000;e.step=1;e.value=1000;})();
 let best=0,bn=-1;
 PLASMIDS.forEach((p,i)=>{const n=p.genes.filter(g=>CL[g[0]].b>0).length; if(n>bn){bn=n;best=i}});
 sel.value=best;
@@ -89,8 +111,8 @@ function draw(){
   const P=PLASMIDS[sel.value];
   const allmi=document.getElementById("allmi").checked;
   const allnames=document.getElementById("allnames").checked;
-  const maxQ=+document.getElementById("fq").value;
-  document.getElementById("oq").textContent=maxQ.toFixed(2);
+  const maxQ=qAt(+document.getElementById("fq").value);
+  document.getElementById("oq").textContent=qText(maxQ);
   svg.textContent="";
   if(!P.genes.length){svg.appendChild(el("text",{x:20,y:40})).textContent="no genes placed";return}
   const span=P.len||Math.max(...P.genes.map(g=>g[2]));
@@ -107,7 +129,6 @@ function draw(){
     const d=`M${x1},${y1}Q${C},${C} ${x2},${y2}`;
     svg.appendChild(el("path",{d,fill:"none",stroke:same?col(ba):"#777",
       "stroke-width":same?Math.min(2.2,0.4+w*0.3):0.5,"stroke-opacity":same?0.38:0.07}));
-    // invisible wider path, so a thin chord is still easy to hover
     const hit=svg.appendChild(el("path",{d,fill:"none",stroke:"transparent",
       "stroke-width":7,"pointer-events":"stroke"}));
     hit.onmousemove=e=>showHTML(e,`${esc(name(CL[a]))}:${esc(name(CL[b]))} (tree <i>p</i>=${(10**-w).toPrecision(2)}`

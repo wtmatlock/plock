@@ -57,7 +57,7 @@ Results go to `results/` by default. Start with `plasmids.html`.
 | File | Contents |
 |---|---|
 | `plasmids.html` | Interactive plot of blocks on each plasmid |
-| `summary.tsv` | Run statistics |
+| `summary.tsv` | Sample statistics |
 | `blocks.tsv` | Block of each gene |
 | `gene_pairs.tsv` | Statistics for each gene pair |
 | `block1.fasta`, etc. | Block genes joined per plasmid, unaligned |

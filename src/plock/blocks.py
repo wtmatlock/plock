@@ -798,9 +798,18 @@ def main(argv=None):
     block_stats = [{"b": b, "genes": sizes[b], "pairs": len(inside[b]), "q": sum(x.q <= TREE_Q for x in inside[b]),
                     "co": middle([x.co for x in inside[b]]), "p": middle([x.p for x in inside[b]]),
                     "distance": apart(inside[b])} for b in kept]
+    # significant and tested pairs within and between blocks with unassigned genes as one group
+    groups = kept + ([-1] if (final < 0).any() else [])
+    at = {b: i for i, b in enumerate(groups)}
+    between = [[[0, 0] for _ in groups] for _ in groups]
+    for x in pairs:
+        i, j = sorted((at[final[x.a]], at[final[x.b]]))
+        between[j][i][0] += int(x.q <= TREE_Q)
+        between[j][i][1] += 1
     params = {"plasmids": n, "analysed": g, "clusters": len(genes.clusters), "haplotypes": haplotypes,
               "changes": int(changed.sum()), "tested": len(pairs), "beyond": beyond, "block_genes": block_genes,
-              "blocks": len(kept), "block_stats": block_stats}
+              "blocks": len(kept), "block_stats": block_stats,
+              "between": {"groups": [int(b) for b in groups], "cells": between}}
     write_report(f"{c.out}/plasmids.html", params, genes, final, pairs, pos, plen)
     log.info(f"wrote plasmids.html, summary.tsv, gene_pairs.tsv, blocks.tsv, {len(kept)} block "
              f"FASTA{'' if len(kept) == 1 else 's'} and plock.log to {c.out}")
