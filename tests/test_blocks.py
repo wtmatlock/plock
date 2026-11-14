@@ -333,3 +333,14 @@ def test_end_to_end_on_a_small_data_set(tmp_path):
     html = (out / "plasmids.html").read_text()
     assert "__PARAMS__" not in html and '"l":"gene1"' in html
     assert (out / "block1.fasta").read_text().count(">") == 16
+
+
+# a plasmid with no analysed calls is left out even when the tree holds it
+def test_plasmids_without_calls_are_left_out(tmp_path):
+    write_inputs(tmp_path)
+    table = tmp_path / "panaroo" / "gene_presence_absence.csv"
+    table.write_text("\n".join(line + ("," if i else ",p16") for i, line in enumerate(table.read_text().splitlines())) + "\n")
+    (tmp_path / "tree.nwk").write_text(f"({balanced(names(16))[:-1]}:1,p16:1);")
+    blocks = run_main(tmp_path, tmp_path / "out")
+    assert blocks["g0"][0] == blocks["g1"][0] == blocks["g2"][0] != "unassigned"
+    assert "1 plasmid with no analysed gene calls left out p16" in (tmp_path / "out" / "plock.log").read_text()

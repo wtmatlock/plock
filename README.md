@@ -94,7 +94,7 @@ nextflow run main.nf --plasmids my_plasmids/ --outdir my_results --cpus 4 --memo
 ## How it works
 
 1. ggCaller predicts genes, Bakta names them and Panaroo clusters them.
-2. plock keeps clusters called once in at least `--min_presence` of plasmids. A plasmid counts as missing for a gene if it has two copies, or if its call is more than 10% longer or shorter than the median. Copies cannot be matched between plasmids, and truncated or fused calls would add false gap changes.
+2. plock keeps clusters called once in at least `--min_presence` of plasmids. A plasmid counts as missing for a gene if it has two copies, or if its call is more than 10% longer or shorter than the median. Copies cannot be matched between plasmids, and truncated or fused calls would add false gap changes. Plasmids with no core gene calls are left out.
 3. Each gene is aligned by codon. Its proteins (code 11) are aligned with MAFFT and the DNA is threaded back with PAL2NAL, so gaps cover whole codons. Calls with a partial codon or an internal stop are left out. These are almost all Panaroo refound sequences. If they are most of a gene's calls, its DNA is aligned with MAFFT instead.
 4. Each variable column gives one pattern per base or gap, marking which plasmids have it. Other letters are unknown.
 5. IQ-TREE 3 builds a tree from the joined gene alignments. ClonalFrameML re-estimates its branch lengths without recombination. Branches too short to hold a substitution are collapsed, as is one branch at a two-way root. The topology averages the genes' histories, so a gene's changes are its departures from that average.

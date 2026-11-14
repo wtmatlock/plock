@@ -254,7 +254,7 @@ def parse_newick(text):
 
 class Tree:
     # the plasmid tree used only to place each gene's changes on branches
-    def __init__(self, text, plasmids):
+    def __init__(self, text, plasmids, ignore=()):
         parent, length, name = parse_newick(text)
         if len(plasmids) < 4:
             raise ValueError("tree: at least 4 plasmids are needed")
@@ -277,7 +277,7 @@ class Tree:
         index = {p: i for i, p in enumerate(plasmids)}
         tip, leaf = [-1] * len(plasmids), [-1] * len(parent)
         for node, tip_name in enumerate(name):
-            if tip_name is None:
+            if tip_name is None or tip_name in ignore:
                 continue
             if tip_name not in index:
                 raise ValueError(f"tree: tip {tip_name} is not a plasmid in the analysis")
@@ -291,8 +291,8 @@ class Tree:
         # tips in node order so the tips below each branch form one run
         rank = np.full(len(parent), -1)
         rank[self.leaf >= 0] = np.arange(len(plasmids))
-        lo = np.where(rank >= 0, rank, len(parent))
-        hi = np.where(rank >= 0, rank + 1, -1)
+        lo = np.where(rank >= 0, rank, len(plasmids))
+        hi = np.where(rank >= 0, rank + 1, 0)
         for i in range(len(parent) - 1):
             lo[parent[i]] = min(lo[parent[i]], lo[i])
             hi[parent[i]] = max(hi[parent[i]], hi[i])
@@ -581,6 +581,16 @@ def read_panaroo(directory, min_presence, alignments=None):
     return genes
 
 
+def keep_plasmids(genes, keep):
+    # the same genes over a subset of plasmids
+    new, n = {old: i for i, old in enumerate(keep)}, len(genes.plasmids)
+    genes.clusters = [r[:3] + [r[3 + i] for i in keep] + r[3 + n:] for r in genes.clusters]
+    genes.plasmids = [genes.plasmids[i] for i in keep]
+    genes.seqs = [[s[i] for i in keep] for s in genes.seqs]
+    genes.ids = {(gi, new[pi]): cell for (gi, pi), cell in genes.ids.items() if pi in new}
+    return genes
+
+
 def median_gap(a, b, genes, pos, lengths):
     # median bases between two genes over the plasmids carrying both
     found = []
@@ -674,10 +684,16 @@ def main(argv=None):
 
     # genes
     genes = read_panaroo(c.panaroo, c.min_presence, c.alignments)
+    # plasmids without an analysed call carry no evidence and are left out
+    empty = [p for pi, p in enumerate(genes.plasmids) if genes.seqs and not any(s[pi] for s in genes.seqs)]
+    if empty:
+        genes = keep_plasmids(genes, [pi for pi, p in enumerate(genes.plasmids) if p not in set(empty)])
     plasmids, n, g = genes.plasmids, len(genes.plasmids), len(genes.names)
     called = np.array([[a != "" for a in s] for s in genes.seqs], bool).reshape(g, n)
     log.stage(1, "Genes")
-    log.info(f"{len(genes.clusters)} gene clusters in {n} plasmids")
+    log.info(f"{len(genes.clusters)} gene clusters in {n + len(empty)} plasmids")
+    if empty:
+        log.warn(f"{plural(len(empty), 'plasmid')} with no analysed gene calls left out {' '.join(empty)}")
     log.info(f"{g} analysed; {genes.rare} below {number(c.min_presence * 100)}% single-copy presence")
     if genes.multi_calls:
         log.info(f"{genes.multi_calls} multi-copy calls in analysed genes treated as missing")
@@ -693,7 +709,7 @@ def main(argv=None):
     if g < c.min_block_size:
         log.warn("too few genes to form a block")
     try:
-        tree = Tree(Path(c.tree).read_text(), plasmids)
+        tree = Tree(Path(c.tree).read_text(), plasmids, set(empty))
     except (OSError, ValueError) as e:
         die(e)
 

@@ -66,15 +66,16 @@ def test_core_calls_follow_plock_rules(tmp_path):
 
 # a codon alignment keeps indels in whole codons and leaves out the odd call out of frame
 # while a gene mostly out of frame is aligned as dna with every call kept
+# and a plasmid with no calls is left out of the joined alignment
 @pytest.mark.skipif(not (shutil.which("mafft") and shutil.which("pal2nal.pl")), reason="mafft and pal2nal are not installed")
 def test_alignment_by_codon(tmp_path):
     base = "ATGAAACCCGGGTTTAAACCCGGGTTTAAACCCGGGTTTTAA"
     stop = "ATGTAA" + base[6:]
     dna = {"a0": base, "a1": base[:15] + base[18:], "a2": base.replace("AAA", "AAG", 1), "a3": base[:-3] + "TGA",
            "b0": base, "b1": base, "b2": base, "b3": stop, "c0": base, "c1": stop, "c2": stop, "c3": stop}
-    write_panaroo(tmp_path / "p", dna, ["Gene,Non-unique Gene name,Annotation,p0,p1,p2,p3",
-                                        "g,,,a0,a1,a2,a3", "h,,,b0,b1,b2,b3", "k,,,c0,c1,c2,c3"])
-    helpers.main(["align", "--panaroo", str(tmp_path / "p"), "--out", str(tmp_path / "msa")])
+    write_panaroo(tmp_path / "p", dna, ["Gene,Non-unique Gene name,Annotation,p0,p1,p2,p3,p4",
+                                        "g,,,a0,a1,a2,a3,", "h,,,b0,b1,b2,b3,", "k,,,c0,c1,c2,c3,"])
+    helpers.main(["align", "--panaroo", str(tmp_path / "p"), "--min-presence", "0.75", "--out", str(tmp_path / "msa")])
     genes = tmp_path / "msa" / "aligned_gene_sequences"
     rows = dict(helpers.fasta(genes / "g.aln.fas"))
     assert sorted(rows) == ["p0;a0", "p1;a1", "p2;a2", "p3;a3"]

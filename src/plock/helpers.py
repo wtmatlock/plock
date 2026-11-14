@@ -199,9 +199,14 @@ def align(a):
             here = {x[0]: seqs[f"s{i}"] for i, x in enumerate(kept)}
             for p in plasmids:
                 rows[p].append(here.get(p, "-" * width))
-    Path(a.out, "core_gene_alignment.aln").write_text("".join(f">{p}\n{''.join(r)}\n" for p, r in rows.items()))
+    # plasmids with no core gene call would be all gaps and are left out of the tree
+    empty = [p for p, r in rows.items() if not any(set(x.upper()) & set("ACGT") for x in r)]
+    Path(a.out, "core_gene_alignment.aln").write_text(
+        "".join(f">{p}\n{''.join(r)}\n" for p, r in rows.items() if p not in empty))
     print(f"Aligned {by_codon} core genes by codon with {dropped} calls out of frame left out, "
           f"and {by_dna} by dna because most of their calls are out of frame")
+    if empty:
+        print(f"Left {len(empty)} plasmids with no core gene calls out of the tree {' '.join(empty)}")
 
 
 def parser():
